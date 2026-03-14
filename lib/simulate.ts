@@ -76,7 +76,7 @@ function efficiencyWinProb(adjEmA: number, adjEmB: number): number {
   return Math.max(0.03, Math.min(0.97, 0.5 + (adjEmA - adjEmB) * 0.015));
 }
 
-function blendedWinProb(a: TeamInput, b: TeamInput): number {
+export function blendedWinProb(a: TeamInput, b: TeamInput): number {
   const eff  = efficiencyWinProb(a.adjEM, b.adjEM);
   const hist = seedHistoryRate(a.kenpomRank, b.kenpomRank);
   return eff * 0.60 + hist * 0.40;
