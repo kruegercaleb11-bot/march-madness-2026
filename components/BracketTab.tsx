@@ -4,30 +4,20 @@ import type { SimResult } from "@/lib/types";
 import { TEAMS } from "@/lib/teams-data";
 import { blendedWinProb } from "@/lib/simulate";
 
-// ── Bracket structure ─────────────────────────────────────────────────────────
-// 16-team bracket using our 13 tracked teams + 3 TBD lower seeds
+// ── Bracket structure — EAST REGION ──────────────────────────────────────────
 
-const TBD_14 = { name: "TBD (14)",  kenpomRank: 17, adjO: 40, adjD: 22, adjEM: 19.5, net: 20, sos: 25, trend: "steady" as const, status: "Unknown", espnPct: 0.1 };
-const TBD_15 = { name: "TBD (15)",  kenpomRank: 18, adjO: 45, adjD: 25, adjEM: 18.0, net: 22, sos: 28, trend: "steady" as const, status: "Unknown", espnPct: 0.1 };
-const TBD_16 = { name: "TBD (16)",  kenpomRank: 20, adjO: 50, adjD: 28, adjEM: 16.5, net: 25, sos: 30, trend: "steady" as const, status: "Unknown", espnPct: 0.0 };
+const getT = (name: string) => TEAMS.find((t) => t.name === name)!;
 
-const ALL_BRACKET_TEAMS = [...TEAMS, TBD_14, TBD_15, TBD_16];
-const getT = (name: string) => ALL_BRACKET_TEAMS.find((t) => t.name === name)!;
-
-// 8 first-round matchups in standard 1-16 bracket pairing
-// Seeds based on KenPom rank order: 1=Duke, 2=Michigan, 3=Arizona, 4=Florida,
-// 5=Illinois, 6=Houston, 7=Iowa State, 8=Michigan State, 9=Gonzaga,
-// 10=UConn, 11=Louisville, 12=Nebraska, 13=BYU, 14=TBD-14, 15=TBD-15, 16=TBD-16
-
+// East Region first-round matchups (standard 1/16, 8/9, 5/12, 4/13, 6/11, 3/14, 7/10, 2/15)
 const ROUND1: [string, string][] = [
-  ["Duke",          "TBD (16)"],     // 1 vs 16
-  ["Michigan State","Gonzaga"],       // 8 vs 9
-  ["Illinois",      "Nebraska"],      // 5 vs 12
-  ["Florida",       "BYU"],           // 4 vs 13
-  ["Houston",       "Louisville"],    // 6 vs 11
-  ["Arizona",       "TBD (14)"],      // 3 vs 14
-  ["Iowa State",    "UConn"],         // 7 vs 10
-  ["Michigan",      "TBD (15)"],      // 2 vs 15
+  ["Duke",          "Siena"],         // 1 vs 16
+  ["Ohio State",    "TCU"],           // 8 vs 9
+  ["St. John's",    "Northern Iowa"], // 5 vs 12
+  ["Kansas",        "Cal Baptist"],   // 4 vs 13
+  ["Louisville",    "South Florida"], // 6 vs 11
+  ["Michigan State","N. Dakota St"],  // 3 vs 14
+  ["UCLA",          "UCF"],           // 7 vs 10
+  ["UConn",         "Furman"],        // 2 vs 15
 ];
 
 // Matchup pairs for QF/SF/F: indices into previous round's winners
@@ -88,13 +78,11 @@ function TeamSlot({
 // ── Game ──────────────────────────────────────────────────────────────────────
 
 function Game({ teamA, teamB, onSelect }: { teamA: string; teamB: string; onSelect?: (name: string) => void }) {
-  const { winner, loser, prob } = predictWinner(teamA, teamB);
-  const tbd = teamA.startsWith("TBD") || teamB.startsWith("TBD");
+  const { winner, prob } = predictWinner(teamA, teamB);
   return (
     <div className="space-y-0.5">
-      <TeamSlot name={teamA} prob={teamA === winner ? prob : 1 - prob} isWinner={teamA === winner} isTbd={teamA.startsWith("TBD")} onSelect={onSelect} />
-      <TeamSlot name={teamB} prob={teamB === winner ? prob : 1 - prob} isWinner={teamB === winner} isTbd={teamB.startsWith("TBD")} onSelect={onSelect} />
-      {tbd && <div className="text-center text-xs text-gray-700 py-0.5">Seed TBD — Selection Sunday</div>}
+      <TeamSlot name={teamA} prob={teamA === winner ? prob : 1 - prob} isWinner={teamA === winner} isTbd={false} onSelect={onSelect} />
+      <TeamSlot name={teamB} prob={teamB === winner ? prob : 1 - prob} isWinner={teamB === winner} isTbd={false} onSelect={onSelect} />
     </div>
   );
 }
@@ -166,7 +154,7 @@ export default function BracketTab({ results, onSelectTeam }: {
     <div className="space-y-4">
       {/* Note */}
       <div className="rounded-xl bg-blue-950 border border-blue-900 px-4 py-2.5 text-xs text-blue-300">
-        Predicted bracket based on our Monte Carlo model. TBD seeds fill in after Selection Sunday (March 15). Tap any team to see their full profile.
+        East Region — predicted bracket based on our Monte Carlo model. Tap any team to see their full profile.
       </div>
 
       {/* Bracket — horizontal scroll */}
@@ -226,7 +214,7 @@ export default function BracketTab({ results, onSelectTeam }: {
                 {i > 0 && <span className="text-gray-700">→</span>}
                 <div className="bg-gray-800 rounded-lg px-3 py-2 text-center">
                   <div className="text-xs text-gray-500">{step.round}</div>
-                  <div className="text-xs text-gray-400">def. {step.opp.replace("TBD (14)", "TBD").replace("TBD (15)", "TBD").replace("TBD (16)", "TBD")}</div>
+                  <div className="text-xs text-gray-400">def. {step.opp}</div>
                   <div className="font-bold text-blue-400">{(step.prob * 100).toFixed(0)}%</div>
                 </div>
               </div>
