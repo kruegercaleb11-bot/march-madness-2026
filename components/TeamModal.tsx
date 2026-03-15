@@ -180,23 +180,21 @@ export default function TeamModal({ result: r, teamData: t, onClose }: TeamModal
             </div>
           </section>
 
-          {/* Experience layer */}
-          {(r.exp_total !== 0 || (t?.primary_guard_exp)) && (
+          {/* Experience layer — only shown when data is available */}
+          {t?.primary_guard_exp && r.exp_total != null && (
             <section>
               <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
                 Experience Layer · {r.exp_total > 0 ? "+" : ""}{r.exp_total}pp early-round adj
               </h3>
               <div className="bg-gray-900 rounded-xl px-4 py-1">
-                {t?.primary_guard_exp && (
-                  <StatRow
-                    label="Guard Experience"
-                    value={t.primary_guard_exp.charAt(0).toUpperCase() + t.primary_guard_exp.slice(1)
-                      + (t.is_guard_all_american ? " (All-American)" : "")}
-                    sub={r.exp_guard_adj !== 0 ? `${r.exp_guard_adj > 0 ? "+" : ""}${r.exp_guard_adj}pp adj` : "No adjustment (AA override)"}
-                    good={r.exp_guard_adj >= 0}
-                  />
-                )}
-                {t?.returning_min_pct !== undefined && (
+                <StatRow
+                  label="Guard Experience"
+                  value={t.primary_guard_exp.charAt(0).toUpperCase() + t.primary_guard_exp.slice(1)
+                    + (t.is_guard_all_american ? " (All-American)" : "")}
+                  sub={r.exp_guard_adj !== 0 ? `${r.exp_guard_adj > 0 ? "+" : ""}${r.exp_guard_adj}pp adj` : "No adjustment (AA override)"}
+                  good={r.exp_guard_adj >= 0}
+                />
+                {t.returning_min_pct !== undefined && (
                   <StatRow
                     label="Returning Minutes"
                     value={`${Math.round(t.returning_min_pct * 100)}%`}
@@ -204,7 +202,7 @@ export default function TeamModal({ result: r, teamData: t, onClose }: TeamModal
                     good={r.exp_ret_min_adj >= 0}
                   />
                 )}
-                {t?.one_and_done_count !== undefined && (
+                {t.one_and_done_count !== undefined && (
                   <StatRow
                     label="One-and-Done Count"
                     value={`${t.one_and_done_count} projected`}
