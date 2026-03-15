@@ -63,6 +63,81 @@ function applyChampionProfile(t: TeamInput): ProfileResult {
   return { magic_circle, defense_fail, repeat_tax, big_ten_penalty, injury_penalty, sos_discount, trend_mod, multiplier };
 }
 
+// ── Experience layer ──────────────────────────────────────────────────────────
+//
+// Research-backed adjustments layered on top of blendedWinProb.
+// Applied per-matchup so the round-based decay can be simulated accurately:
+//   Rounds 0–1 (R64, R32)  : full strength — young teams upset more here
+//   Rounds 2–3 (S16, E8)   : 50%           — survivors are dangerous regardless
+//   Rounds 4–5 (FF, Champ) : 10%           — talent & efficiency dominate late
+//
+// ⚙  ALL NUMERIC VALUES BELOW ARE TUNABLE — search "TUNE:" to locate them.
+
+interface ExpScore {
+  guard_adj:   number;  // guard experience component (win-prob pp, full strength)
+  ret_min_adj: number;  // returning minutes component
+  oad_adj:     number;  // one-and-done component
+  total:       number;  // sum
+}
+
+/** Per-team experience score at full (R64) strength, vs a neutral opponent. */
+function teamExpScore(t: TeamInput): ExpScore {
+  // ── Guard experience ──────────────────────────────────────────────────────
+  let guard_adj = 0;
+  const exp = t.primary_guard_exp;
+  if (exp) {
+    // All-American flag overrides freshman/sophomore penalty:
+    // elite underclassmen can run a team without the typical disadvantage.
+    const isAAUnderclass =
+      (t.is_guard_all_american ?? false) &&
+      (exp === "freshman" || exp === "sophomore");
+
+    if (!isAAUnderclass) {
+      switch (exp) {
+        case "senior":    guard_adj = +0.04; break; // TUNE: senior boost (+4 pp)
+        case "junior":    guard_adj = +0.02; break; // TUNE: junior boost (+2 pp)
+        case "sophomore": guard_adj = -0.04; break; // TUNE: soph penalty (-4 pp)
+                                                     //   (no champion w/ soph PG, last 10 yrs)
+        case "freshman":  guard_adj = -0.02; break; // TUNE: frosh penalty (-2 pp)
+      }
+    }
+    // All-American underclassmen get 0 adjustment (penalty wiped, no extra boost)
+  }
+
+  // ── Returning minutes ─────────────────────────────────────────────────────
+  let ret_min_adj = 0;
+  if (t.returning_min_pct !== undefined) {
+    const pct = t.returning_min_pct;
+    if (pct < 0.30) {
+      ret_min_adj = -0.04; // TUNE: sub-30% penalty (-4 pp)
+                            // No team has ever earned a 1-seed & won title below this threshold
+    } else if (pct >= 0.50) {
+      ret_min_adj = +0.015; // TUNE: 50%+ bonus (+1.5 pp)
+    }
+    // 30–50%: neutral (0) — no adjustment
+  }
+
+  // ── One-and-done roster ───────────────────────────────────────────────────
+  // Correlation between OAD count and tournament wins is weak (r≈0.21 for Duke,
+  // r≈0.51 for Kentucky historically), so the per-player penalty is small.
+  const oadCount = t.one_and_done_count ?? 0;
+  const oad_adj = -Math.min(0.05, oadCount * 0.015);
+  //               TUNE: floor -0.05 (cap), per-OAD penalty -0.015 (-1.5 pp each)
+
+  const total = guard_adj + ret_min_adj + oad_adj;
+  return { guard_adj, ret_min_adj, oad_adj, total };
+}
+
+/**
+ * Round scale: how much experience modifiers matter at each tournament stage.
+ * round 0=R64, 1=R32, 2=S16, 3=E8, 4=FF, 5=Championship
+ */
+function expRoundScale(round: number): number {
+  if (round <= 1) return 1.0; // TUNE: R64/R32 — full weight
+  if (round <= 3) return 0.5; // TUNE: S16/E8  — young survivors are dangerous
+  return 0.1;                 // TUNE: FF/Champ — pure talent & efficiency
+}
+
 // ── Win probability ────────────────────────────────────────────────────────────
 
 function seedHistoryRate(seedA: number, seedB: number): number {
@@ -76,10 +151,21 @@ function efficiencyWinProb(adjEmA: number, adjEmB: number): number {
   return Math.max(0.03, Math.min(0.97, 0.5 + (adjEmA - adjEmB) * 0.015));
 }
 
-export function blendedWinProb(a: TeamInput, b: TeamInput): number {
+/**
+ * Blended win probability for team A over team B.
+ * `round` defaults to 0 (R64 / full experience strength) — callers without
+ * round context (H2H tab, Bracket view) get the early-round experience effect.
+ */
+export function blendedWinProb(a: TeamInput, b: TeamInput, round = 0): number {
   const eff  = efficiencyWinProb(a.adjEM, b.adjEM);
   const hist = seedHistoryRate(a.kenpomRank, b.kenpomRank);
-  return eff * 0.60 + hist * 0.40;
+  const base = eff * 0.60 + hist * 0.40;
+
+  // Experience adjustment: net difference between teams, scaled by round stage
+  const scale  = expRoundScale(round);
+  const expAdj = (teamExpScore(a).total - teamExpScore(b).total) * scale;
+
+  return Math.max(0.03, Math.min(0.97, base + expAdj));
 }
 
 // ── Single tournament simulation ───────────────────────────────────────────────
@@ -92,15 +178,22 @@ function simulateTournament(teams: TeamInput[]): string {
     [field[i], field[j]] = [field[j], field[i]];
   }
 
+  // Track round number for experience scaling.
+  // Round 0 = first elimination round (R64 for 64-team field).
+  const totalRounds = Math.round(Math.log2(field.length));
   let current = field;
+  let roundNum = 0;
+
   while (current.length > 1) {
     const next: TeamInput[] = [];
     for (let i = 0; i < current.length - 1; i += 2) {
-      const pA = blendedWinProb(current[i], current[i + 1]);
+      // Pass round number so experience modifiers decay appropriately
+      const pA = blendedWinProb(current[i], current[i + 1], roundNum);
       next.push(Math.random() < pA ? current[i] : current[i + 1]);
     }
     if (current.length % 2 === 1) next.push(current[current.length - 1]); // bye
     current = next;
+    roundNum = Math.min(roundNum + 1, totalRounds - 1);
   }
   return current[0].name;
 }
@@ -121,9 +214,13 @@ function poolEv(pWin: number, espnPct: number): number {
 // ── Main export ───────────────────────────────────────────────────────────────
 
 export function runSimulation(teams: TeamInput[], n = SIMULATIONS): SimulationOutput {
-  // Build profiles
-  const profiles = new Map<string, ProfileResult>();
-  for (const t of teams) profiles.set(t.name, applyChampionProfile(t));
+  // Build champion profiles + experience scores
+  const profiles  = new Map<string, ProfileResult>();
+  const expScores = new Map<string, ExpScore>();
+  for (const t of teams) {
+    profiles.set(t.name, applyChampionProfile(t));
+    expScores.set(t.name, teamExpScore(t));
+  }
 
   // Monte Carlo
   const counts = new Map<string, number>(teams.map((t) => [t.name, 0]));
@@ -171,7 +268,8 @@ export function runSimulation(teams: TeamInput[], n = SIMULATIONS): SimulationOu
 
   // Build result records
   const results: SimResult[] = teams.map((t) => {
-    const p = profiles.get(t.name)!;
+    const p   = profiles.get(t.name)!;
+    const exp = expScores.get(t.name)!;
     const rawP  = rawProbs.get(t.name)!;
     const adjP  = adjProbs.get(t.name)!;
     const finP  = finalProbs.get(t.name)!;
@@ -193,6 +291,11 @@ export function runSimulation(teams: TeamInput[], n = SIMULATIONS): SimulationOu
       defense_fail:    p.defense_fail,
       trend_mod:       p.trend_mod,
       multiplier:      +p.multiplier.toFixed(4),
+      // Experience layer — full-strength (R64) scores for UI display
+      exp_guard_adj:   +( exp.guard_adj   * 100).toFixed(1),
+      exp_ret_min_adj: +( exp.ret_min_adj * 100).toFixed(1),
+      exp_oad_adj:     +( exp.oad_adj     * 100).toFixed(1),
+      exp_total:       +( exp.total       * 100).toFixed(1),
     };
   });
 

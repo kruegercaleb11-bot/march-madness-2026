@@ -32,6 +32,12 @@ export interface SimResult {
   defense_fail: boolean;
   trend_mod: number;
   multiplier: number;
+  // Experience layer — full-strength (R64) values for display.
+  // Applied per-matchup with round scaling inside the simulation.
+  exp_guard_adj:   number;  // guard experience component (pp)
+  exp_ret_min_adj: number;  // returning minutes component (pp)
+  exp_oad_adj:     number;  // one-and-done component (pp)
+  exp_total:       number;  // sum of all experience components (pp)
 }
 
 export interface SimulationOutput {

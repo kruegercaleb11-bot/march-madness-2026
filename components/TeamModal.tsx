@@ -180,6 +180,45 @@ export default function TeamModal({ result: r, teamData: t, onClose }: TeamModal
             </div>
           </section>
 
+          {/* Experience layer */}
+          {(r.exp_total !== 0 || (t?.primary_guard_exp)) && (
+            <section>
+              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
+                Experience Layer · {r.exp_total > 0 ? "+" : ""}{r.exp_total}pp early-round adj
+              </h3>
+              <div className="bg-gray-900 rounded-xl px-4 py-1">
+                {t?.primary_guard_exp && (
+                  <StatRow
+                    label="Guard Experience"
+                    value={t.primary_guard_exp.charAt(0).toUpperCase() + t.primary_guard_exp.slice(1)
+                      + (t.is_guard_all_american ? " (All-American)" : "")}
+                    sub={r.exp_guard_adj !== 0 ? `${r.exp_guard_adj > 0 ? "+" : ""}${r.exp_guard_adj}pp adj` : "No adjustment (AA override)"}
+                    good={r.exp_guard_adj >= 0}
+                  />
+                )}
+                {t?.returning_min_pct !== undefined && (
+                  <StatRow
+                    label="Returning Minutes"
+                    value={`${Math.round(t.returning_min_pct * 100)}%`}
+                    sub={r.exp_ret_min_adj !== 0 ? `${r.exp_ret_min_adj > 0 ? "+" : ""}${r.exp_ret_min_adj}pp adj` : "Neutral (30–50% band)"}
+                    good={r.exp_ret_min_adj >= 0}
+                  />
+                )}
+                {t?.one_and_done_count !== undefined && (
+                  <StatRow
+                    label="One-and-Done Count"
+                    value={`${t.one_and_done_count} projected`}
+                    sub={r.exp_oad_adj !== 0 ? `${r.exp_oad_adj}pp adj (weak r≈0.21–0.51)` : "No adjustment"}
+                    good={r.exp_oad_adj >= 0}
+                  />
+                )}
+              </div>
+              <p className="text-xs text-gray-700 mt-1.5 px-1">
+                Full strength in R64/R32 · 50% in S16/E8 · 10% in FF/Champ
+              </p>
+            </section>
+          )}
+
           {/* Scouting report */}
           <section>
             <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Scouting Report</h3>
